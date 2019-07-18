@@ -1,7 +1,7 @@
 # CycleGAN-Music-Style-Transfer-Refactorization
 ## Symbolic Music Genre Transfer with CycleGAN - Refactorization
 
-Since the project - CycleGAN-Music-Style-Transfer was published, quite a lot people were interested in it. However due to my poor coding skills and lacking of eperiences, there were some annoying problems like following which confused people a lot: 
+Since the project - CycleGAN-Music-Style-Transfer was published, quite a lot people were interested in it. However due to my poor coding skills and lacking of experiences, there were some annoying problems like following which confused people a lot: 
 - Code is not very readable. 
 - Code structure is bad. 
 - Comments are not enough. 
