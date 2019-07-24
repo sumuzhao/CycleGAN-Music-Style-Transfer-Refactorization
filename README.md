@@ -21,3 +21,5 @@ Still, I cannot guarantee the codes make everyone happy and reproduce the same o
 ## Datasets
 
 All the data we used to generate the audio samples on Youtube and for the evaluation in the paper can be downloaded here https://goo.gl/ZK8wLW. I recommend the data set in https://drive.google.com/file/d/1zyN4IEM8LbDHIMSwoiwB6wRSgFyz7MEH/view?usp=sharing, which can be used directly. They are the same as the dataset above. 
+
+**Note**: For those interested in details, please go to [CycleGAN-Music-Style-Transfer](https://github.com/sumuzhao/CycleGAN-Music-Style-Transfer) or refer to the paper [Symbolic Music Genre Transfer with CycleGAN](https://arxiv.org/pdf/1809.07575.pdf). 
