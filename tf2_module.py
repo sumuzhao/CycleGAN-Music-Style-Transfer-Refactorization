@@ -67,7 +67,7 @@ def resnet_block(x, dim, k_init, ks=3, s=1):
     # After second padding, (batch * 130 * 130 * 3)
 
     y = layers.Conv2D(filters=dim,
-                      kernek_size=ks,
+                      kernel_size=ks,
                       strides=s,
                       padding='valid',
                       kernel_initializer=k_init,
