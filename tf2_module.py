@@ -23,23 +23,6 @@ def softmax_criterion(logits, labels):
 def padding(x, p=3):
     return tf.pad(x, [[0, 0], [p, p], [p, p], [0, 0]], "REFLECT")
 
-
-def instance_norm(x, epsilon=1e-5):
-
-    scale = tf.Variable(initial_value=np.random.normal(1., 0.02, x.shape[-1:]),
-                        trainable=True,
-                        name='SCALE',
-                        dtype=tf.float32)
-    offset = tf.Variable(initial_value=np.zeros(x.shape[-1:]),
-                         trainable=True,
-                         name='OFFSET',
-                         dtype=tf.float32)
-    mean, variance = tf.nn.moments(x, axes=[1, 2], keepdims=True)
-    inv = tf.math.rsqrt(variance + epsilon)
-    normalized = (x - mean) * inv
-    return scale * normalized + offset
-
-
 def resnet_block(x, dim, k_init, ks=3, s=1):
 
     # e.g, x is (batch * 128 * 128 * 3)
@@ -79,6 +62,30 @@ def resnet_block(x, dim, k_init, ks=3, s=1):
 
     return y
 
+class InstanceNorm(layers.Layer):
+    def __init__(self, epsilon=1e-5):
+        super(InstanceNorm, self).__init__()
+        self.epsilon = epsilon
+    
+    def call(self, x):
+        scale = tf.Variable(
+            initial_value=np.random.normal(1., 0.02, x.shape[-1:]),
+            trainable=True,
+            name='SCALE',
+            dtype=tf.float32
+        )
+        offset = tf.Variable(
+            initial_value=np.zeros(x.shape[-1:]),
+            trainable=True,
+            name='OFFSET',
+            dtype=tf.float32
+        )
+        mean, variance = tf.nn.moments(x, axes=[1, 2], keepdims=True)
+        inv = tf.math.rsqrt(variance + self.epsilon)
+        normalized = (x - mean) * inv
+        return scale * normalized + offset
+
+
 
 def build_discriminator(options, name='Discriminator'):
 
@@ -107,8 +114,7 @@ def build_discriminator(options, name='Discriminator'):
                       kernel_initializer=initializer,
                       use_bias=False,
                       name='CONV2D_2')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_1')(x)
+    x = InstanceNorm()(x)
     x = layers.LeakyReLU(alpha=0.2)(x)
     # (batch * 16 * 21 * 256)
 
@@ -150,8 +156,7 @@ def build_generator(options, name='Generator'):
                       kernel_initializer=initializer,
                       use_bias=False,
                       name='CONV2D_1')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_1')(x)
+    x = InstanceNorm()(x)
     x = layers.ReLU()(x)
     # (batch * 64 * 84 * 64)
 
@@ -162,8 +167,7 @@ def build_generator(options, name='Generator'):
                       kernel_initializer=initializer,
                       use_bias=False,
                       name='CONV2D_2')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_2')(x)
+    x = InstanceNorm()(x)
     x = layers.ReLU()(x)
     # (batch * 32 * 42 * 128)
 
@@ -174,8 +178,7 @@ def build_generator(options, name='Generator'):
                       kernel_initializer=initializer,
                       use_bias=False,
                       name='CONV2D_3')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_3')(x)
+    x = InstanceNorm()(x)
     x = layers.ReLU()(x)
     # (batch * 16 * 21 * 256)
 
@@ -194,8 +197,7 @@ def build_generator(options, name='Generator'):
                                kernel_initializer=initializer,
                                use_bias=False,
                                name='DECONV2D_1')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_4')(x)
+    x = InstanceNorm()(x)
     x = layers.ReLU()(x)
     # (batch * 32 * 42 * 128)
 
@@ -206,8 +208,7 @@ def build_generator(options, name='Generator'):
                                kernel_initializer=initializer,
                                use_bias=False,
                                name='DECONV2D_2')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_5')(x)
+    x = InstanceNorm()(x)
     x = layers.ReLU()(x)
     # (batch * 64 * 84 * 64)
 
@@ -260,8 +261,7 @@ def build_discriminator_classifier(options, name='Discriminator_Classifier'):
                       kernel_initializer=initializer,
                       use_bias=False,
                       name='CONV2D_2')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_1')(x)
+    x = InstanceNorm()(x)
     x = layers.LeakyReLU(alpha=0.2)(x)
     # (batch * 16 * 7 * 128)
 
@@ -272,8 +272,7 @@ def build_discriminator_classifier(options, name='Discriminator_Classifier'):
                       kernel_initializer=initializer,
                       use_bias=False,
                       name='CONV2D_3')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_2')(x)
+    x = InstanceNorm()(x)
     x = layers.LeakyReLU(alpha=0.2)(x)
     # (batch * 8 * 7 * 256)
 
@@ -284,8 +283,7 @@ def build_discriminator_classifier(options, name='Discriminator_Classifier'):
                       kernel_initializer=initializer,
                       use_bias=False,
                       name='CONV2D_4')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_3')(x)
+    x = InstanceNorm()(x)
     x = layers.LeakyReLU(alpha=0.2)(x)
     # (batch * 1 * 7 * 512)
 
