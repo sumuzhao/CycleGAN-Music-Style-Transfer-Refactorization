@@ -23,62 +23,73 @@ def softmax_criterion(logits, labels):
 def padding(x, p=3):
     return tf.pad(x, [[0, 0], [p, p], [p, p], [0, 0]], "REFLECT")
 
+class InstanceNorm(layers.Layer):
+    def __init__(self, epsilon=1e-5):
+        super(InstanceNorm, self).__init__()
+        self.epsilon = epsilon
+    
+    def call(self, x):
+        scale = tf.Variable(
+            initial_value=np.random.normal(1., 0.02, x.shape[-1:]),
+            trainable=True,
+            name='SCALE',
+            dtype=tf.float32
+        )
+        offset = tf.Variable(
+            initial_value=np.zeros(x.shape[-1:]),
+            trainable=True,
+            name='OFFSET',
+            dtype=tf.float32
+        )
+        mean, variance = tf.nn.moments(x, axes=[1, 2], keepdims=True)
+        inv = tf.math.rsqrt(variance + self.epsilon)
+        normalized = (x - mean) * inv
+        return scale * normalized + offset
 
-def instance_norm(x, epsilon=1e-5):
 
-    scale = tf.Variable(initial_value=np.random.normal(1., 0.02, x.shape[-1:]),
-                        trainable=True,
-                        name='SCALE',
-                        dtype=tf.float32)
-    offset = tf.Variable(initial_value=np.zeros(x.shape[-1:]),
-                         trainable=True,
-                         name='OFFSET',
-                         dtype=tf.float32)
-    mean, variance = tf.nn.moments(x, axes=[1, 2], keepdims=True)
-    inv = tf.math.rsqrt(variance + epsilon)
-    normalized = (x - mean) * inv
-    return scale * normalized + offset
+class ResNetBlock(layers.Layer):
+    def __init__(self, dim, k_init, ks=3, s=1):
+        super(ResNetBlock, self).__init__()
+        self.dim = dim 
+        self.k_init = k_init 
+        self.ks = ks
+        self.s = s
+        self.p = (ks - 1) // 2
+        # For ks = 3, p = 1
+        self.padding = "valid"
 
+    def call(self, x):
+        y = layers.Lambda(padding, arguments={"p": self.p}, name="PADDING_1")(x)
+        # After first padding, (batch * 130 * 130 * 3)
 
-def resnet_block(x, dim, k_init, ks=3, s=1):
+        y = layers.Conv2D(
+            filters=self.dim,
+            kernel_size=self.ks,
+            strides=self.s,
+            padding=self.padding,
+            kernel_initializer=self.k_init,
+            use_bias=False
+        )(y)
+        y = InstanceNorm()(y)
+        y = layers.ReLU()(y)
+        # After first conv2d, (batch * 128 * 128 * 3)
 
-    # e.g, x is (batch * 128 * 128 * 3)
-    p = (ks - 1) // 2
-    # For ks = 3, p = 1
-    y = layers.Lambda(padding,
-                      arguments={'p': p},
-                      name='PADDING_1')(x)
-    # After first padding, (batch * 130 * 130 * 3)
+        y = layers.Lambda(padding, arguments={"p": self.p}, name="PADDING_2")(y)
+        # After second padding, (batch * 130 * 130 * 3)
 
-    y = layers.Conv2D(filters=dim,
-                      kernel_size=ks,
-                      strides=s,
-                      padding='valid',
-                      kernel_initializer=k_init,
-                      use_bias=False)(y)
-    y = layers.Lambda(instance_norm,
-                      name='IN')(y)
-    y = layers.ReLU()(y)
-    # After first conv2d, (batch * 128 * 128 * 3)
+        y = layers.Conv2D(
+            filters=self.dim,
+            kernel_size=self.ks,
+            strides=self.s,
+            padding=self.padding,
+            kernel_initializer=self.k_init,
+            use_bias=False
+        )(y)
+        y = InstanceNorm()(y)
+        y = layers.ReLU()(y + x)
+        # After second conv2d, (batch * 128 * 128 * 3)
 
-    y = layers.Lambda(padding,
-                      arguments={'p': p},
-                      name='PADDING_2')(y)
-    # After second padding, (batch * 130 * 130 * 3)
-
-    y = layers.Conv2D(filters=dim,
-                      kernel_size=ks,
-                      strides=s,
-                      padding='valid',
-                      kernel_initializer=k_init,
-                      use_bias=False)(y)
-    y = layers.Lambda(instance_norm,
-                      name='IN')(y)
-    y = layers.ReLU()(y + x)
-    # After second conv2d, (batch * 128 * 128 * 3)
-
-    return y
-
+        return y
 
 def build_discriminator(options, name='Discriminator'):
 
@@ -107,8 +118,7 @@ def build_discriminator(options, name='Discriminator'):
                       kernel_initializer=initializer,
                       use_bias=False,
                       name='CONV2D_2')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_1')(x)
+    x = InstanceNorm()(x)
     x = layers.LeakyReLU(alpha=0.2)(x)
     # (batch * 16 * 21 * 256)
 
@@ -150,8 +160,7 @@ def build_generator(options, name='Generator'):
                       kernel_initializer=initializer,
                       use_bias=False,
                       name='CONV2D_1')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_1')(x)
+    x = InstanceNorm()(x)
     x = layers.ReLU()(x)
     # (batch * 64 * 84 * 64)
 
@@ -162,8 +171,7 @@ def build_generator(options, name='Generator'):
                       kernel_initializer=initializer,
                       use_bias=False,
                       name='CONV2D_2')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_2')(x)
+    x = InstanceNorm()(x)
     x = layers.ReLU()(x)
     # (batch * 32 * 42 * 128)
 
@@ -174,17 +182,13 @@ def build_generator(options, name='Generator'):
                       kernel_initializer=initializer,
                       use_bias=False,
                       name='CONV2D_3')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_3')(x)
+    x = InstanceNorm()(x)
     x = layers.ReLU()(x)
     # (batch * 16 * 21 * 256)
 
     for i in range(10):
         # x = resnet_block(x, options.gf_dim * 4)
-        x = layers.Lambda(resnet_block,
-                          arguments={'dim': options.gf_dim * 4,
-                                     'k_init': initializer},
-                          name='ResNet_Block_{}'.format(i))(x)
+        x = ResNetBlock(dim=options.gf_dim * 4, k_init=initializer)(x)
     # (batch * 16 * 21 * 256)
 
     x = layers.Conv2DTranspose(filters=options.gf_dim * 2,
@@ -194,8 +198,7 @@ def build_generator(options, name='Generator'):
                                kernel_initializer=initializer,
                                use_bias=False,
                                name='DECONV2D_1')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_4')(x)
+    x = InstanceNorm()(x)
     x = layers.ReLU()(x)
     # (batch * 32 * 42 * 128)
 
@@ -206,8 +209,7 @@ def build_generator(options, name='Generator'):
                                kernel_initializer=initializer,
                                use_bias=False,
                                name='DECONV2D_2')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_5')(x)
+    x = InstanceNorm()(x)
     x = layers.ReLU()(x)
     # (batch * 64 * 84 * 64)
 
@@ -260,8 +262,7 @@ def build_discriminator_classifier(options, name='Discriminator_Classifier'):
                       kernel_initializer=initializer,
                       use_bias=False,
                       name='CONV2D_2')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_1')(x)
+    x = InstanceNorm()(x)
     x = layers.LeakyReLU(alpha=0.2)(x)
     # (batch * 16 * 7 * 128)
 
@@ -272,8 +273,7 @@ def build_discriminator_classifier(options, name='Discriminator_Classifier'):
                       kernel_initializer=initializer,
                       use_bias=False,
                       name='CONV2D_3')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_2')(x)
+    x = InstanceNorm()(x)
     x = layers.LeakyReLU(alpha=0.2)(x)
     # (batch * 8 * 7 * 256)
 
@@ -284,8 +284,7 @@ def build_discriminator_classifier(options, name='Discriminator_Classifier'):
                       kernel_initializer=initializer,
                       use_bias=False,
                       name='CONV2D_4')(x)
-    x = layers.Lambda(instance_norm,
-                      name='IN_3')(x)
+    x = InstanceNorm()(x)
     x = layers.LeakyReLU(alpha=0.2)(x)
     # (batch * 1 * 7 * 512)
 
