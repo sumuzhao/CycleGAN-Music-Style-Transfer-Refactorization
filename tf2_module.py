@@ -217,7 +217,7 @@ def build_generator(options, name='Generator'):
                       name='PADDING_2')(x)
     # After padding, (batch * 70 * 90 * 64)
 
-    x = layers.Conv2D(filters=options.output_nc,
+    x = layers.Conv2DTranspose(filters=options.output_nc,
                       kernel_size=7,
                       strides=1,
                       padding='valid',
