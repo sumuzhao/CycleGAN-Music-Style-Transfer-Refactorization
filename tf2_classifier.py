@@ -39,9 +39,9 @@ class Classifier(object):
                                         'is_training')
         self.options = OPTIONS._make((args.batch_size,
                                       args.time_step,
-                                      args.pitch_range,
                                       args.input_nc,
                                       args.output_nc,
+                                      args.pitch_range,
                                       args.ngf,
                                       args.ndf,
                                       args.phase == 'train'))
